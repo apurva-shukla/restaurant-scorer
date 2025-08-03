@@ -31,12 +31,16 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SERVER_SSH_PRIVATE_KEY }}
 
-      # Step 4: Sync files to the server
+      # Step 4: Test HTTP Connectivity to Tunnel
+      - name: Test HTTP Connectivity to Tunnel
+        run: curl -v https://${{ secrets.SERVER_HOST }}
+
+      # Step 5: Sync files to the server
       - name: Sync Files to Server
         run: |
           rsync -avz --exclude='.venv' --exclude='__pycache__' --exclude='*.pyc' --exclude='.git' --exclude='.github' --exclude='data/' -e "ssh -o ProxyCommand='cloudflared access ssh --hostname %h'" . ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.REMOTE_PATH }}
 
-      # Step 5: Connect to the server and restart the application
+      # Step 6: Connect to the server and restart the application
       - name: Rebuild and Restart Docker on Server
         run: |
           ssh -o ProxyCommand='cloudflared access ssh --hostname %h' ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
