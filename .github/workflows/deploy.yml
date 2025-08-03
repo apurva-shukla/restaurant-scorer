@@ -18,25 +18,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Step 2: Install the SSH key from the secret
+      # Step 2: Install cloudflared
+      - name: Install cloudflared
+        run: |
+          sudo mkdir -p /usr/local/bin
+          sudo curl -L --output /usr/local/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+          sudo chmod +x /usr/local/bin/cloudflared
+
+      # Step 3: Setup SSH Key
       - name: Setup SSH Key
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SERVER_SSH_PRIVATE_KEY }}
 
-      # Step 3: Add the server's IP to the runner's known hosts to avoid prompts
-      - name: Add Server to Known Hosts
-        run: ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
-
-      # Step 4: Sync files to the server, similar to your manual command
+      # Step 4: Sync files to the server
       - name: Sync Files to Server
         run: |
-          rsync -avz --exclude='.venv' --exclude='__pycache__' --exclude='*.pyc' --exclude='.git' --exclude='.github' --exclude='data/' . ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.REMOTE_PATH }}
+          rsync -avz --exclude='.venv' --exclude='__pycache__' --exclude='*.pyc' --exclude='.git' --exclude='.github' --exclude='data/' -e "ssh -o ProxyCommand='cloudflared access ssh --hostname %h'" . ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.REMOTE_PATH }}
 
       # Step 5: Connect to the server and restart the application
       - name: Rebuild and Restart Docker on Server
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+          ssh -o ProxyCommand='cloudflared access ssh --hostname %h' ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
             cd ${{ secrets.REMOTE_PATH }}
             echo "--- Stopping current services ---"
             docker-compose down
