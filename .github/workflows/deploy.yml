@@ -1,0 +1,46 @@
+# .github/workflows/deploy.yml
+
+name: Deploy to Server
+
+# This action triggers on pushes to the 'main' branch
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    # Use the latest Ubuntu runner
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Get the latest code from the repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Install the SSH key from the secret
+      - name: Setup SSH Key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SERVER_SSH_PRIVATE_KEY }}
+
+      # Step 3: Add the server's IP to the runner's known hosts to avoid prompts
+      - name: Add Server to Known Hosts
+        run: ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      # Step 4: Sync files to the server, similar to your manual command
+      - name: Sync Files to Server
+        run: |
+          rsync -avz --exclude='.venv' --exclude='__pycache__' --exclude='*.pyc' --exclude='.git' --exclude='.github' --exclude='data/' . ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.REMOTE_PATH }}
+
+      # Step 5: Connect to the server and restart the application
+      - name: Rebuild and Restart Docker on Server
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+            cd ${{ secrets.REMOTE_PATH }}
+            echo "--- Stopping current services ---"
+            docker-compose down
+            echo "--- Building new image and restarting services ---"
+            docker-compose up --build -d
+            echo "--- Deployment complete ---"
+          EOF 
