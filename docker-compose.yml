@@ -4,7 +4,17 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./data:/data  # SQLite persistence
+      - ./data:/app/data  # SQLite persistence (app writes to /app/data)
     restart: unless-stopped
     environment:
-      - PYTHONPATH=/app 
+      - PYTHONPATH=/app
+  sqlite-web:
+    image: coleifer/sqlite-web:latest
+    command: ["sqlite_web", "-H", "0.0.0.0", "-p", "8080", "/data/food.db", "--read-only"]
+    ports:
+      - "9000:8080"
+    volumes:
+      - ./data:/data  # Mount same host data, sqlite-web expects /data/food.db
+    depends_on:
+      - web
+    restart: unless-stopped 
